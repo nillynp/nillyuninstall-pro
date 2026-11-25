@@ -33,8 +33,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyUninstall Pro")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
 
 namespace NillyUninstallPro
 {
@@ -684,17 +684,20 @@ namespace NillyUninstallPro
             _actFlow.Controls.AddRange(new Control[] { _btnUninstall, _btnOpenDir, _btnRemoveBloat, _btnRestoreStore, _btnCleanLeftover });
             _actionBar.Controls.Add(_actFlow);
 
-            // ListViews
+            // ListViews (auto-stretched columns — zero white header gap!)
             _lvApps = BuildLV(new string[] { "Πρόγραμμα", "Εκδότης", "Έκδοση", "Ημερομηνία", "Μέγεθος", "Είδος" },
                               new int[] { 340, 210, 110, 100, 95, 130 });
             _lvApps.DoubleClick += delegate { UninstallSelectedWin32(); };
+            _lvApps.Resize += delegate { FitColumns(_lvApps, new int[] { 310, 195, 100, 95, 90, 125 }); };
 
             _lvBloat = BuildLV(new string[] { "Εφαρμογή Windows 11", "Κατηγορία", "Μέγεθος", "Αντίκτυπος / Αντικατάσταση Σουίτας" },
                                new int[] { 255, 175, 95, 480 });
             _lvBloat.CheckBoxes = true;
+            _lvBloat.Resize += delegate { FitColumns(_lvBloat, new int[] { 245, 170, 90, 440 }); };
 
             _lvLeft = BuildLV(new string[] { "Φάκελος (Πιθανό Υπόλειμμα)", "Τοποθεσία", "Μέγεθος", "Τροποποίηση", "Πλήρης Διαδρομή" },
                               new int[] { 220, 125, 95, 125, 430 });
+            _lvLeft.Resize += delegate { FitColumns(_lvLeft, new int[] { 200, 120, 90, 115, 390 }); };
 
             Panel body = new Panel { Dock = DockStyle.Fill };
             body.Controls.AddRange(new Control[] { _lvApps, _lvBloat, _lvLeft });
@@ -722,7 +725,13 @@ namespace NillyUninstallPro
                 Native.SetDarkTitlebar(Handle, _dark);
                 Native.ApplyTaskbarIcon(this, icoPath);
             };
-            Shown += delegate { Native.TrimMemory(); };
+            Shown += delegate
+            {
+                FitColumns(_lvApps, new int[] { 310, 195, 100, 95, 90, 125 });
+                FitColumns(_lvBloat, new int[] { 245, 170, 90, 440 });
+                FitColumns(_lvLeft, new int[] { 200, 120, 90, 115, 390 });
+                Native.TrimMemory();
+            };
 
             ApplyTheme();
             LayoutTabBar();
@@ -747,6 +756,22 @@ namespace NillyUninstallPro
                 if (_tabBar.Height != 62) _tabBar.Height = 62;
                 _lblSummary.Location = new Point(12, 38);
             }
+        }
+
+        private static void FitColumns(ListView lv, int[] mins)
+        {
+            if (lv == null || lv.Columns.Count != mins.Length) return;
+            int cw = lv.ClientSize.Width;
+            if (cw <= 120) return;
+            int total = 0; for (int i = 0; i < mins.Length; i++) total += mins[i];
+            int target = Math.Max(total, cw - 2), used = 0;
+            for (int i = 0; i < mins.Length - 1; i++)
+            {
+                int w = (int)Math.Round((double)mins[i] * target / total);
+                lv.Columns[i].Width = Math.Max(55, w);
+                used += lv.Columns[i].Width;
+            }
+            lv.Columns[mins.Length - 1].Width = Math.Max(90, target - used);
         }
 
         private Button MkBtn(string txt, int w, string tip, EventHandler click)
