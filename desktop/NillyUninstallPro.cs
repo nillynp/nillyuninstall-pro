@@ -33,8 +33,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyUninstall Pro")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace NillyUninstallPro
 {
@@ -623,6 +623,12 @@ namespace NillyUninstallPro
         private List<BloatApp> _visBloat = new List<BloatApp>();
         private List<LeftoverItem> _allLeft = new List<LeftoverItem>();
         private List<LeftoverItem> _visLeft = new List<LeftoverItem>();
+        private int _appSortCol = 0; private bool _appSortAsc = true;
+        private int _bloatSortCol = 2; private bool _bloatSortAsc = false;
+        private int _leftSortCol = 2; private bool _leftSortAsc = false;
+        private static readonly string[] AppCols = new string[] { "Πρόγραμμα", "Εκδότης", "Έκδοση", "Ημερομηνία", "Μέγεθος", "Είδος" };
+        private static readonly string[] BloatCols = new string[] { "Εφαρμογή Windows 11", "Κατηγορία", "Μέγεθος", "Αντίκτυπος / Αντικατάσταση Σουίτας" };
+        private static readonly string[] LeftCols = new string[] { "Φάκελος (Πιθανό Υπόλειμμα)", "Τοποθεσία", "Μέγεθος", "Τροποποίηση", "Πλήρης Διαδρομή" };
         private bool _bloatLoaded, _leftLoaded;
         private Bitmap _logoBmp;
 
@@ -687,18 +693,39 @@ namespace NillyUninstallPro
             _actionBar.Controls.Add(_actFlow);
 
             // ListViews (auto-stretched columns — zero white header gap!)
-            _lvApps = BuildLV(new string[] { "Πρόγραμμα", "Εκδότης", "Έκδοση", "Ημερομηνία", "Μέγεθος", "Είδος" },
-                              new int[] { 340, 210, 110, 100, 95, 130 });
+            _lvApps = BuildLV(AppCols, new int[] { 340, 210, 110, 100, 95, 130 });
+            SetSortHeaders(_lvApps, AppCols, _appSortCol, _appSortAsc);
+            _lvApps.ColumnClick += delegate(object s, ColumnClickEventArgs e)
+            {
+                if (_appSortCol == e.Column) _appSortAsc = !_appSortAsc;
+                else { _appSortCol = e.Column; _appSortAsc = (e.Column != 3 && e.Column != 4); }
+                SetSortHeaders(_lvApps, AppCols, _appSortCol, _appSortAsc);
+                RenderApps();
+            };
             _lvApps.DoubleClick += delegate { UninstallSelectedWin32(); };
             _lvApps.Resize += delegate { FitColumns(_lvApps, new int[] { 310, 195, 100, 95, 90, 125 }); };
 
-            _lvBloat = BuildLV(new string[] { "Εφαρμογή Windows 11", "Κατηγορία", "Μέγεθος", "Αντίκτυπος / Αντικατάσταση Σουίτας" },
-                               new int[] { 255, 175, 95, 480 });
+            _lvBloat = BuildLV(BloatCols, new int[] { 255, 175, 95, 480 });
+            SetSortHeaders(_lvBloat, BloatCols, _bloatSortCol, _bloatSortAsc);
+            _lvBloat.ColumnClick += delegate(object s, ColumnClickEventArgs e)
+            {
+                if (_bloatSortCol == e.Column) _bloatSortAsc = !_bloatSortAsc;
+                else { _bloatSortCol = e.Column; _bloatSortAsc = (e.Column != 2); }
+                SetSortHeaders(_lvBloat, BloatCols, _bloatSortCol, _bloatSortAsc);
+                RenderBloat();
+            };
             _lvBloat.CheckBoxes = true;
             _lvBloat.Resize += delegate { FitColumns(_lvBloat, new int[] { 245, 170, 90, 440 }); };
 
-            _lvLeft = BuildLV(new string[] { "Φάκελος (Πιθανό Υπόλειμμα)", "Τοποθεσία", "Μέγεθος", "Τροποποίηση", "Πλήρης Διαδρομή" },
-                              new int[] { 220, 125, 95, 125, 430 });
+            _lvLeft = BuildLV(LeftCols, new int[] { 220, 125, 95, 125, 430 });
+            SetSortHeaders(_lvLeft, LeftCols, _leftSortCol, _leftSortAsc);
+            _lvLeft.ColumnClick += delegate(object s, ColumnClickEventArgs e)
+            {
+                if (_leftSortCol == e.Column) _leftSortAsc = !_leftSortAsc;
+                else { _leftSortCol = e.Column; _leftSortAsc = (e.Column != 2 && e.Column != 3); }
+                SetSortHeaders(_lvLeft, LeftCols, _leftSortCol, _leftSortAsc);
+                RenderLeftovers();
+            };
             _lvLeft.DoubleClick += delegate
             {
                 if (_lvLeft.SelectedItems.Count > 0)
@@ -978,6 +1005,13 @@ namespace NillyUninstallPro
             else RenderLeftovers();
         }
 
+        private static void SetSortHeaders(ListView lv, string[] cols, int sortCol, bool asc)
+        {
+            if (lv == null || lv.Columns.Count < cols.Length) return;
+            for (int i = 0; i < cols.Length; i++)
+                lv.Columns[i].Text = cols[i] + (i == sortCol ? (asc ? " ▲" : " ▼") : "");
+        }
+
         private void RenderApps()
         {
             string q = Helpers.StripAccents(_txtSearch.Text.Trim());
@@ -991,6 +1025,19 @@ namespace NillyUninstallPro
                     totKb += _allApps[i].SizeKb;
                 }
             }
+            int sign = _appSortAsc ? 1 : -1;
+            _visApps.Sort(delegate(InstalledApp a, InstalledApp b)
+            {
+                int cmp = 0;
+                if (_appSortCol == 1) cmp = string.Compare(a.Publisher ?? "", b.Publisher ?? "", StringComparison.OrdinalIgnoreCase);
+                else if (_appSortCol == 2) cmp = string.Compare(a.Version ?? "", b.Version ?? "", StringComparison.OrdinalIgnoreCase);
+                else if (_appSortCol == 3) cmp = string.Compare(a.InstallDate ?? "", b.InstallDate ?? "", StringComparison.OrdinalIgnoreCase);
+                else if (_appSortCol == 4) cmp = a.SizeKb.CompareTo(b.SizeKb);
+                else if (_appSortCol == 5) cmp = string.Compare(a.Scope ?? "", b.Scope ?? "", StringComparison.OrdinalIgnoreCase);
+                else cmp = string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.OrdinalIgnoreCase);
+                if (cmp == 0) cmp = string.Compare(a.Name ?? "", b.Name ?? "", StringComparison.OrdinalIgnoreCase);
+                return sign * cmp;
+            });
             _lvApps.BeginUpdate();
             _lvApps.Items.Clear();
             for (int i = 0; i < _visApps.Count; i++)
@@ -1022,6 +1069,17 @@ namespace NillyUninstallPro
                     if (_allBloat[i].IsRecommendedBloat) recMb += _allBloat[i].SizeMb;
                 }
             }
+            int sign = _bloatSortAsc ? 1 : -1;
+            _visBloat.Sort(delegate(BloatApp a, BloatApp b)
+            {
+                int cmp = 0;
+                if (_bloatSortCol == 1) cmp = string.Compare(a.Category ?? "", b.Category ?? "", StringComparison.OrdinalIgnoreCase);
+                else if (_bloatSortCol == 2) cmp = a.SizeMb.CompareTo(b.SizeMb);
+                else if (_bloatSortCol == 3) cmp = string.Compare(a.ReplacesNote ?? "", b.ReplacesNote ?? "", StringComparison.OrdinalIgnoreCase);
+                else cmp = string.Compare(a.FriendlyName ?? "", b.FriendlyName ?? "", StringComparison.OrdinalIgnoreCase);
+                if (cmp == 0) cmp = string.Compare(a.FriendlyName ?? "", b.FriendlyName ?? "", StringComparison.OrdinalIgnoreCase);
+                return sign * cmp;
+            });
             _lvBloat.BeginUpdate();
             _lvBloat.Items.Clear();
             for (int i = 0; i < _visBloat.Count; i++)
@@ -1051,6 +1109,18 @@ namespace NillyUninstallPro
                     tot += _allLeft[i].SizeBytes;
                 }
             }
+            int sign = _leftSortAsc ? 1 : -1;
+            _visLeft.Sort(delegate(LeftoverItem a, LeftoverItem b)
+            {
+                int cmp = 0;
+                if (_leftSortCol == 1) cmp = string.Compare(a.RootLabel ?? "", b.RootLabel ?? "", StringComparison.OrdinalIgnoreCase);
+                else if (_leftSortCol == 2) cmp = a.SizeBytes.CompareTo(b.SizeBytes);
+                else if (_leftSortCol == 3) cmp = a.Modified.CompareTo(b.Modified);
+                else if (_leftSortCol == 4) cmp = string.Compare(a.FullPath ?? "", b.FullPath ?? "", StringComparison.OrdinalIgnoreCase);
+                else cmp = string.Compare(a.FolderName ?? "", b.FolderName ?? "", StringComparison.OrdinalIgnoreCase);
+                if (cmp == 0) cmp = string.Compare(a.FolderName ?? "", b.FolderName ?? "", StringComparison.OrdinalIgnoreCase);
+                return sign * cmp;
+            });
             _lvLeft.BeginUpdate();
             _lvLeft.Items.Clear();
             for (int i = 0; i < _visLeft.Count; i++)
@@ -1073,7 +1143,7 @@ namespace NillyUninstallPro
             using (SolidBrush br = new SolidBrush(_bgPanel)) e.Graphics.FillRectangle(br, e.Bounds);
             using (Pen p = new Pen(_border)) e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
             Rectangle r = new Rectangle(e.Bounds.X + 6, e.Bounds.Y, Math.Max(4, e.Bounds.Width - 10), e.Bounds.Height);
-            TextFormatFlags tf = TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | (e.Header.Text == "Μέγεθος" ? TextFormatFlags.Right : TextFormatFlags.Left);
+            TextFormatFlags tf = TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | (e.Header.Text.StartsWith("Μέγεθος") ? TextFormatFlags.Right : TextFormatFlags.Left);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, _fSmall, r, _fgMuted, tf);
         }
 
@@ -1118,7 +1188,7 @@ namespace NillyUninstallPro
 
             Rectangle r = new Rectangle(e.Bounds.X + xPad, e.Bounds.Y, Math.Max(4, e.Bounds.Width - xPad - 6), e.Bounds.Height);
             TextFormatFlags tf = TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
-                                 (lv.Columns[e.ColumnIndex].Text == "Μέγεθος" ? TextFormatFlags.Right : TextFormatFlags.Left);
+                                 (lv.Columns[e.ColumnIndex].Text.StartsWith("Μέγεθος") ? TextFormatFlags.Right : TextFormatFlags.Left);
             TextRenderer.DrawText(e.Graphics, e.SubItem.Text, fn, r, fg, tf);
         }
 
@@ -1149,7 +1219,13 @@ namespace NillyUninstallPro
                 Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = true });
                 _lblStatus.Text = "Εκκινήθηκε το uninstaller για: " + a.Name + " (πάτα ↻ μόλις τελειώσει).";
             }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "NillyUninstall Pro", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            catch (Exception ex)
+            {
+                string low = (ex.Message ?? "").ToLowerInvariant();
+                string msg = low.Contains("canceled by the user") ? "Η απεγκατάσταση ακυρώθηκε από τον χρήστη (UAC)."
+                    : (low.Contains("cannot find the file") ? "Δεν βρέθηκε το αρχείο απεγκατάστασης (ίσως έχει ήδη αφαιρεθεί)." : ex.Message);
+                MessageBox.Show(this, msg, "NillyUninstall Pro", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private static bool ReadSuiteDark(bool fallback)
@@ -1339,7 +1415,7 @@ namespace NillyUninstallPro
                 Native.SetDarkTitlebar(dlg.Handle, _dark);
 
                 PictureBox pic = new PictureBox { Size = new Size(42, 42), Location = new Point(18, 16), SizeMode = PictureBoxSizeMode.Zoom, Image = _logoBmp };
-                Label hdr = new Label { Text = "NillyUninstall Pro v1.0", Location = new Point(70, 16), AutoSize = true, Font = new Font("Segoe UI", 13.0f, FontStyle.Bold) };
+                Label hdr = new Label { Text = "NillyUninstall Pro v1.2", Location = new Point(70, 16), AutoSize = true, Font = new Font("Segoe UI", 13.0f, FontStyle.Bold) };
                 Label sub = new Label { Text = "Ultra-Light Native Uninstaller, Safe Win11 Bloat Remover & Leftover Cleaner", Location = new Point(72, 42), AutoSize = true, Font = _fSmall, ForeColor = _accent, UseMnemonic = false };
 
                 Panel card = new Panel { Location = new Point(18, 72), Size = new Size(478, 212), BackColor = _bgPanel };
