@@ -33,8 +33,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyUninstall Pro")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.0.2.0")]
-[assembly: AssemblyFileVersion("1.0.2.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace NillyUninstallPro
 {
@@ -613,7 +613,7 @@ namespace NillyUninstallPro
         private readonly Button _btnTabApps, _btnTabBloat, _btnTabLeft, _btnRefresh, _btnTheme, _btnInfo;
         private readonly TextBox _txtSearch;
         private readonly FlowLayoutPanel _actFlow;
-        private readonly Button _btnUninstall, _btnRemoveBloat, _btnRestoreStore, _btnCleanLeftover, _btnOpenDir;
+        private readonly Button _btnUninstall, _btnRemoveBloat, _btnRestoreStore, _btnCleanLeftover, _btnOpenDir, _btnExportNote;
         private readonly DoubleBufferedLV _lvApps, _lvBloat, _lvLeft;
         private readonly LinkLabel _lnkBrand;
 
@@ -636,6 +636,7 @@ namespace NillyUninstallPro
 
         public MainForm(bool smokeMode)
         {
+            _dark = ReadSuiteDark(true);
             Text = "NillyUninstall Pro — Ultra-Light Uninstaller & Windows 11 Bloat Remover | Nilly graphics";
             Size = new Size(1120, 690);
             MinimumSize = new Size(760, 480);
@@ -677,11 +678,12 @@ namespace NillyUninstallPro
             _actionBar = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 5, 10, 5) };
             _actFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
             _btnUninstall = MkBtn("✕ Απεγκατάσταση Επιλεγμένου", 205, "Εκκίνηση κανονικής απεγκατάστασης προγράμματος", delegate { UninstallSelectedWin32(); });
-            _btnOpenDir = MkBtn("Φάκελος Εγκατάστασης", 160, "Άνοιγμα φακέλου εγκατάστασης", delegate { OpenSelectedFolder(); });
+            _btnOpenDir = MkBtn("Φάκελος Εγκατάστασης", 160, "Άνοιγμα φακέλου εγκατάστασης (NillyFiles / Explorer)", delegate { OpenSelectedFolder(); });
+            _btnExportNote = MkBtn("↗ Λίστα σε Note", 128, "Εξαγωγή λίστας εγκατεστημένων προγραμμάτων στο NillyNote Pro", delegate { ExportAppsToNillyNote(); });
             _btnRemoveBloat = MkBtn("✕ Αφαίρεση Επιλεγμένων Bloat", 215, "Ασφαλής αφαίρεση επιλεγμένων Store Bloat Apps (Zero Admin)", delegate { RemoveSelectedBloat(); });
             _btnRestoreStore = MkBtn("↺ Επαναφορά από Microsoft Store", 220, "Άνοιγμα στο Microsoft Store για 1-κλικ επανεγκατάσταση", delegate { RestoreSelectedFromStore(); });
             _btnCleanLeftover = MkBtn("Κάδος Ανακύκλωσης (Επιλεγμένο)", 225, "Ασφαλής μεταφορά στον Κάδο Ανακύκλωσης", delegate { DeleteSelectedLeftover(); });
-            _actFlow.Controls.AddRange(new Control[] { _btnUninstall, _btnOpenDir, _btnRemoveBloat, _btnRestoreStore, _btnCleanLeftover });
+            _actFlow.Controls.AddRange(new Control[] { _btnUninstall, _btnOpenDir, _btnExportNote, _btnRemoveBloat, _btnRestoreStore, _btnCleanLeftover });
             _actionBar.Controls.Add(_actFlow);
 
             // ListViews (auto-stretched columns — zero white header gap!)
@@ -697,6 +699,14 @@ namespace NillyUninstallPro
 
             _lvLeft = BuildLV(new string[] { "Φάκελος (Πιθανό Υπόλειμμα)", "Τοποθεσία", "Μέγεθος", "Τροποποίηση", "Πλήρης Διαδρομή" },
                               new int[] { 220, 125, 95, 125, 430 });
+            _lvLeft.DoubleClick += delegate
+            {
+                if (_lvLeft.SelectedItems.Count > 0)
+                {
+                    LeftoverItem l = _lvLeft.SelectedItems[0].Tag as LeftoverItem;
+                    if (l != null && Directory.Exists(l.FullPath)) OpenFolderSmart(l.FullPath);
+                }
+            };
             _lvLeft.Resize += delegate { FitColumns(_lvLeft, new int[] { 200, 120, 90, 115, 390 }); };
 
             Panel body = new Panel { Dock = DockStyle.Fill };
@@ -861,6 +871,8 @@ namespace NillyUninstallPro
 
             StyleBtn(_btnUninstall, true, _pink);
             StyleBtn(_btnOpenDir, false, _cyan);
+            StyleBtn(_btnExportNote, false, _accent);
+            _btnExportNote.ForeColor = _accent;
             StyleBtn(_btnRemoveBloat, true, _pink);
             StyleBtn(_btnRestoreStore, false, _green);
             StyleBtn(_btnCleanLeftover, true, _accent);
@@ -883,6 +895,7 @@ namespace NillyUninstallPro
 
             _btnUninstall.Visible = (tab == 0);
             _btnOpenDir.Visible = (tab == 0);
+            _btnExportNote.Visible = (tab == 0);
             _btnRemoveBloat.Visible = (tab == 1);
             _btnRestoreStore.Visible = (tab == 1);
             _btnCleanLeftover.Visible = (tab == 2);
@@ -1139,12 +1152,89 @@ namespace NillyUninstallPro
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "NillyUninstall Pro", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         }
 
+        private static bool ReadSuiteDark(bool fallback)
+        {
+            try
+            {
+                string p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"NillySuite\suite.theme");
+                if (File.Exists(p))
+                {
+                    string s = File.ReadAllText(p, Encoding.ASCII).Trim();
+                    if (s.Equals("light", StringComparison.OrdinalIgnoreCase)) return false;
+                    if (s.Equals("dark", StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
+        private static string FindSiblingExe(string folder, string exeName)
+        {
+            try
+            {
+                string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"NillySuite\" + folder + @"\" + exeName);
+                if (File.Exists(appData)) return appData;
+                DirectoryInfo par = Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));
+                if (par != null)
+                {
+                    string sib = Path.Combine(Path.Combine(par.FullName, folder), exeName);
+                    if (File.Exists(sib)) return sib;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static void OpenFolderSmart(string dir)
+        {
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+            string filesExe = FindSiblingExe("NillyFilesPro", "NillyFilesPro.exe");
+            if (filesExe != null)
+            {
+                try { Process.Start(new ProcessStartInfo(filesExe, "\"" + dir + "\"") { WorkingDirectory = Path.GetDirectoryName(filesExe), UseShellExecute = true }); return; } catch { }
+            }
+            try { Process.Start("explorer.exe", "\"" + dir + "\""); } catch { }
+        }
+
+        private void ExportAppsToNillyNote()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("=== NillyUninstall Pro — Λίστα Εγκατεστημένων Προγραμμάτων ===");
+            sb.AppendLine("Ημερομηνία: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "  |  Σύνολο: " + _visApps.Count);
+            sb.AppendLine("created by Nilly graphics (Sotiris Christos) — nillygraphics.com");
+            sb.AppendLine("");
+            for (int i = 0; i < _visApps.Count; i++)
+            {
+                InstalledApp a = _visApps[i];
+                sb.AppendFormat("{0,3}. {1}", i + 1, a.Name);
+                if (!string.IsNullOrEmpty(a.Version)) sb.Append("  [v" + a.Version + "]");
+                if (!string.IsNullOrEmpty(a.Publisher)) sb.Append("  —  " + a.Publisher);
+                if (a.SizeKb > 0) sb.Append("  (" + Helpers.FmtMb(a.SizeKb / 1024.0) + ")");
+                sb.AppendLine();
+            }
+            string txt = sb.ToString();
+            string noteExe = FindSiblingExe("NillyNotePro", "NillyNotePro.exe");
+            if (noteExe != null)
+            {
+                try
+                {
+                    string tmp = Path.Combine(Path.GetTempPath(), "NillyUninstall_Apps_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt");
+                    File.WriteAllText(tmp, txt, new UTF8Encoding(false));
+                    Process.Start(new ProcessStartInfo(noteExe, "\"" + tmp + "\"") { WorkingDirectory = Path.GetDirectoryName(noteExe), UseShellExecute = true });
+                    _lblStatus.Text = "↗ Η λίστα εστάλη στο NillyNote Pro (" + _visApps.Count + " προγράμματα).";
+                    return;
+                }
+                catch { }
+            }
+            try { Clipboard.SetText(txt); _lblStatus.Text = "✓ Αντιγράφηκε η λίστα (" + _visApps.Count + " προγράμματα) στο πρόχειρο."; } catch { }
+        }
+
         private void OpenSelectedFolder()
         {
             if (_lvApps.SelectedItems.Count == 0) return;
             InstalledApp a = _lvApps.SelectedItems[0].Tag as InstalledApp;
             if (a != null && !string.IsNullOrEmpty(a.InstallLocation) && Directory.Exists(a.InstallLocation))
-                Process.Start("explorer.exe", "\"" + a.InstallLocation + "\"");
+                OpenFolderSmart(a.InstallLocation);
             else
                 _lblStatus.Text = "Δεν υπάρχει καταχωρημένος φάκελος εγκατάστασης για αυτό το πρόγραμμα.";
         }
