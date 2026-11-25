@@ -33,8 +33,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyUninstall Pro")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 namespace NillyUninstallPro
 {
@@ -664,16 +664,14 @@ namespace NillyUninstallPro
             rightHdr.Controls.AddRange(new Control[] { _txtSearch, _btnRefresh, _btnTheme, _btnInfo });
             _header.Controls.AddRange(new Control[] { _logoBox, _lblTitle, _lblSub, rightHdr });
 
-            // Tab bar
-            _tabBar = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(10, 5, 10, 5) };
-            FlowLayoutPanel tabFlow = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
+            // Responsive Tab bar (auto-wraps summary cleanly below 820px)
+            _tabBar = new Panel { Dock = DockStyle.Top, Height = 38 };
             _btnTabApps = MkBtn("Εγκατεστημένα Προγράμματα", 205, "Όλα τα Win32 / MSI / Χρήστη προγράμματα", delegate { SwitchTab(0); });
             _btnTabBloat = MkBtn("Windows 11 Bloat (Ασφαλές)", 215, "Αφαιρούμενα Microsoft / Store Bloat Apps με επαναφορά Store", delegate { SwitchTab(1); });
             _btnTabLeft = MkBtn("Υπολείμματα (Leftovers)", 180, "Ορφανοί φάκελοι AppData (διαγραφή μόνο στον Κάδο)", delegate { SwitchTab(2); });
-            tabFlow.Controls.AddRange(new Control[] { _btnTabApps, _btnTabBloat, _btnTabLeft });
-            _lblSummary = new Label { Dock = DockStyle.Right, AutoSize = true, Font = _fSmall, TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(8, 7, 4, 0) };
-            _tabBar.Controls.Add(_lblSummary);
-            _tabBar.Controls.Add(tabFlow);
+            _lblSummary = new Label { AutoSize = true, Font = _fSmall, TextAlign = ContentAlignment.MiddleRight, UseMnemonic = false };
+            _tabBar.Controls.AddRange(new Control[] { _btnTabApps, _btnTabBloat, _btnTabLeft, _lblSummary });
+            _tabBar.Resize += delegate { LayoutTabBar(); };
 
             // Action bar
             _actionBar = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 5, 10, 5) };
@@ -703,7 +701,7 @@ namespace NillyUninstallPro
 
             // Status bar
             _statusBar = new Panel { Dock = DockStyle.Bottom, Height = 26, Padding = new Padding(10, 0, 10, 0) };
-            _lblStatus = new Label { Dock = DockStyle.Fill, Font = _fSmall, TextAlign = ContentAlignment.MiddleLeft };
+            _lblStatus = new Label { Dock = DockStyle.Fill, Font = _fSmall, TextAlign = ContentAlignment.MiddleLeft, UseMnemonic = false };
             _lnkBrand = new LinkLabel
             {
                 Text = "created by Nilly graphics (Sotiris Christos) — nillygraphics.com",
@@ -727,8 +725,28 @@ namespace NillyUninstallPro
             Shown += delegate { Native.TrimMemory(); };
 
             ApplyTheme();
+            LayoutTabBar();
             ReloadAll();
             SwitchTab(0);
+        }
+
+        private void LayoutTabBar()
+        {
+            int w = Math.Max(560, _tabBar.ClientSize.Width);
+            int x = 10;
+            _btnTabApps.Location = new Point(x, 5); x += _btnTabApps.Width + 6;
+            _btnTabBloat.Location = new Point(x, 5); x += _btnTabBloat.Width + 6;
+            _btnTabLeft.Location = new Point(x, 5); x += _btnTabLeft.Width + 6;
+            if (w >= x + 195)
+            {
+                if (_tabBar.Height != 38) _tabBar.Height = 38;
+                _lblSummary.Location = new Point(w - Math.Max(180, _lblSummary.Width) - 12, 10);
+            }
+            else
+            {
+                if (_tabBar.Height != 62) _tabBar.Height = 62;
+                _lblSummary.Location = new Point(12, 38);
+            }
         }
 
         private Button MkBtn(string txt, int w, string tip, EventHandler click)
@@ -1207,7 +1225,7 @@ namespace NillyUninstallPro
 
                 PictureBox pic = new PictureBox { Size = new Size(42, 42), Location = new Point(18, 16), SizeMode = PictureBoxSizeMode.Zoom, Image = _logoBmp };
                 Label hdr = new Label { Text = "NillyUninstall Pro v1.0", Location = new Point(70, 16), AutoSize = true, Font = new Font("Segoe UI", 13.0f, FontStyle.Bold) };
-                Label sub = new Label { Text = "Ultra-Light Native Uninstaller, Safe Win11 Bloat Remover & Leftover Cleaner", Location = new Point(72, 42), AutoSize = true, Font = _fSmall, ForeColor = _accent };
+                Label sub = new Label { Text = "Ultra-Light Native Uninstaller, Safe Win11 Bloat Remover & Leftover Cleaner", Location = new Point(72, 42), AutoSize = true, Font = _fSmall, ForeColor = _accent, UseMnemonic = false };
 
                 Panel card = new Panel { Location = new Point(18, 72), Size = new Size(478, 212), BackColor = _bgPanel };
                 Label specs = new Label
